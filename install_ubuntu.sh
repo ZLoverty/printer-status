@@ -64,6 +64,7 @@ Type=simple
 User=${SERVICE_USER}
 WorkingDirectory=${APP_DIR}
 EnvironmentFile=${APP_DIR}/.env
+Environment=PYTHONUNBUFFERED=1
 ExecStart=${VENV_DIR}/bin/printer-status
 Restart=always
 RestartSec=10

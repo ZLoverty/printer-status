@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "printer-status-bitable"
+version = "0.1.0"
+description = "Poll Bambu Lab printer status and sync it to a Feishu Bitable"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "lark-oapi>=1.4.0",
+    "paho-mqtt>=2.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.scripts]
+printer-status = "printer_status.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

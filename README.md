@@ -44,6 +44,15 @@ printer-status-probe --brand raise3d --model Pro3 \
 
 Raise3D 需要先在打印机的 `Machine > Developer` 中启用 Remote Access API，并设置 Access Password。默认 API 端口是 `10800`，可用 `RAISE3D_PORT` 覆盖。
 
+测试暴露 Moonraker 的创想打印机：
+
+```bash
+printer-status-probe --brand creality --model K1C \
+  --ip 192.168.1.22 --access-code CREALITY_API_KEY
+```
+
+默认访问 `7125` 端口的 Moonraker API，可用 `CREALITY_PORT` 覆盖。若没有开启 Moonraker，原厂固件通常不能通过这个适配器查询状态。
+
 目前 Bambu 和 Raise3D 局域网适配器已接入；Creality、Snapmaker 已建立兼容层入口，具体型号协议确认后再实现。
 
 ## 运行

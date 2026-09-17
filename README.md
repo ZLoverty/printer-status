@@ -110,3 +110,9 @@ printer-status-probe --brand snapmaker --model U1 \
 ```
 
 可用 `SNAPMAKER_U1_PORT` 和 `SNAPMAKER_U1_API_KEY` 覆盖默认配置。J1、Artisan 等产品线协议可能不同，暂不按 U1 接口处理。
+
+## 使用率统计
+
+在多维表格主表增加三个数字字段：`utilization`、`busy_seconds`、`observed_seconds`。程序会在本地 SQLite 文件 `.data/printer_status.db` 中记录每轮采样，并将累计使用率回填到主表。
+
+默认将 `RUNNING`、`PAUSED`、`BUSY` 计为忙碌，将 `IDLE`、`FINISHED` 计为空闲；`OFFLINE`、`UNKNOWN` 和查询超时不计入有效观测时间。`MAX_COUNTED_GAP` 默认 180 秒，用于避免服务长时间停止后把停机时间算作使用时间。

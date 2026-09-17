@@ -13,6 +13,7 @@ from lark_oapi.api.bitable.v1 import (
 )
 from .adapters import PrinterSpec, get_adapter
 from .adapters.base import AdapterUnavailable
+from .state_store import StateStore
 
 
 load_dotenv(Path.cwd() / ".env")
@@ -38,8 +39,14 @@ ACCESS_CODE_FIELD = os.getenv("ACCESS_CODE_FIELD", "access_code")
 STATUS_FIELD = os.getenv("STATUS_FIELD", "status")
 BRAND_FIELD = os.getenv("BRAND_FIELD", "brand")
 MODEL_FIELD = os.getenv("MODEL_FIELD", "model")
+UTILIZATION_FIELD = os.getenv("UTILIZATION_FIELD", "utilization")
+BUSY_SECONDS_FIELD = os.getenv("BUSY_SECONDS_FIELD", "busy_seconds")
+OBSERVED_SECONDS_FIELD = os.getenv("OBSERVED_SECONDS_FIELD", "observed_seconds")
+STATE_DB_PATH = os.getenv("STATE_DB_PATH", ".data/printer_status.db")
+MAX_COUNTED_GAP = float(os.getenv("MAX_COUNTED_GAP", "180"))
 
 client = lark.Client.builder().app_id(APP_ID).app_secret(APP_SECRET).build()
+state_store = StateStore(STATE_DB_PATH, max_gap_seconds=MAX_COUNTED_GAP)
 
 
 def query_printer(printer: PrinterSpec) -> str:
@@ -74,8 +81,8 @@ def fetch_all_records():
     return records
 
 
-def update_status(record_id: str, status: str):
-    body = AppTableRecord.builder().fields({STATUS_FIELD: status}).build()
+def update_record(record_id: str, fields: dict):
+    body = AppTableRecord.builder().fields(fields).build()
     request = (
         UpdateAppTableRecordRequest.builder()
         .app_token(APP_TOKEN)
@@ -108,8 +115,21 @@ def poll_once():
         status = query_printer(
             PrinterSpec(brand, model, ip_address, serial, access_code)
         )
-        update_status(record_id, status)
-        print(f"[同步] {serial} ({ip_address}) -> {status}")
+        printer_key = serial or f"{brand}:{model}:{ip_address}"
+        stats = state_store.record(printer_key, status)
+        update_record(
+            record_id,
+            {
+                STATUS_FIELD: status,
+                UTILIZATION_FIELD: stats["utilization"],
+                BUSY_SECONDS_FIELD: stats["busy_seconds"],
+                OBSERVED_SECONDS_FIELD: stats["observed_seconds"],
+            },
+        )
+        print(
+            f"[同步] {printer_key} ({ip_address}) -> {status} "
+            f"| 使用率 {stats['utilization']}%"
+        )
 
 
 def main(once: bool = False):

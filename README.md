@@ -92,3 +92,21 @@ chmod +x install_ubuntu.sh
 sudo systemctl status printer-status
 sudo journalctl -u printer-status -f
 ```
+
+## 测试 Snapmaker 2.0
+
+```bash
+printer-status-probe --brand snapmaker --model A250 \
+  --ip 192.168.1.23
+```
+
+默认访问 `8080` 端口。首次连接时可能需要在打印机触摸屏确认；如果 `connect` 没有返回 token，探测命令会提示这一点。
+
+Snapmaker U1 使用 Moonraker，命令中的 `--model` 必须填写 `U1`，适配器会自动改用 `7125` 端口：
+
+```bash
+printer-status-probe --brand snapmaker --model U1 \
+  --ip 192.168.113.131
+```
+
+可用 `SNAPMAKER_U1_PORT` 和 `SNAPMAKER_U1_API_KEY` 覆盖默认配置。J1、Artisan 等产品线协议可能不同，暂不按 U1 接口处理。

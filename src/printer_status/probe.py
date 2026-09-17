@@ -12,7 +12,7 @@ def main() -> None:
     parser.add_argument("--model", default="", help="具体型号，例如 K1C、A250")
     parser.add_argument("--ip", required=True, help="打印机 IP 地址")
     parser.add_argument("--serial", default="", help="序列号；Bambu 必填")
-    parser.add_argument("--access-code", default="", help="访问码；Bambu 必填")
+    parser.add_argument("--access-code", default="", help="访问码；Bambu/ Raise3D 必填")
     parser.add_argument("--timeout", type=float, default=10)
     args = parser.parse_args()
     printer = PrinterSpec(args.brand, args.model, args.ip, args.serial, args.access_code)

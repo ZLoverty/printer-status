@@ -35,7 +35,16 @@ printer-status-probe --brand bambu --model X1C \
   --ip 192.168.1.20 --serial SERIAL --access-code ACCESS_CODE
 ```
 
-目前 Bambu 适配器已接入；Creality、Raise3D、Snapmaker 已建立兼容层入口，具体型号协议确认后再实现，避免把不兼容的协议误写进主流程。
+测试 Raise3D：
+
+```bash
+printer-status-probe --brand raise3d --model Pro3 \
+  --ip 192.168.1.21 --access-code RAISE_API_PASSWORD
+```
+
+Raise3D 需要先在打印机的 `Machine > Developer` 中启用 Remote Access API，并设置 Access Password。默认 API 端口是 `10800`，可用 `RAISE3D_PORT` 覆盖。
+
+目前 Bambu 和 Raise3D 局域网适配器已接入；Creality、Snapmaker 已建立兼容层入口，具体型号协议确认后再实现。
 
 ## 运行
 

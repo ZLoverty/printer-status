@@ -1,20 +1,18 @@
 """Poll Bambu printers and update their status in a Feishu Bitable."""
 
-import json
 import os
-import ssl
-import threading
 import time
 from pathlib import Path
 
 import lark_oapi as lark
-import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
 from lark_oapi.api.bitable.v1 import (
     AppTableRecord,
     ListAppTableRecordRequest,
     UpdateAppTableRecordRequest,
 )
+from .adapters import PrinterSpec, get_adapter
+from .adapters.base import AdapterUnavailable
 
 
 load_dotenv(Path.cwd() / ".env")
@@ -38,61 +36,18 @@ IP_FIELD = os.getenv("IP_FIELD", "ip_address")
 SERIAL_FIELD = os.getenv("SERIAL_FIELD", "serial")
 ACCESS_CODE_FIELD = os.getenv("ACCESS_CODE_FIELD", "access_code")
 STATUS_FIELD = os.getenv("STATUS_FIELD", "status")
+BRAND_FIELD = os.getenv("BRAND_FIELD", "brand")
+MODEL_FIELD = os.getenv("MODEL_FIELD", "model")
 
 client = lark.Client.builder().app_id(APP_ID).app_secret(APP_SECRET).build()
 
 
-def query_printer(ip_address: str, serial: str, access_code: str) -> str:
-    """通过 MQTT 查询一台打印机，返回 gcode_state 或连接错误。"""
-    result = {"status": None}
-    received = threading.Event()
-    mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-    mqtt_client.username_pw_set("bblp", access_code)
-    mqtt_client.tls_set(cert_reqs=ssl.CERT_NONE)
-    mqtt_client.tls_insecure_set(True)
-    report_topic = f"device/{serial}/report"
-    request_topic = f"device/{serial}/request"
-
-    def on_connect(_client, _userdata, _flags, reason_code, _properties=None):
-        if reason_code != 0:
-            result["status"] = f"连接失败 ({reason_code})"
-            received.set()
-            return
-        _client.subscribe(report_topic)
-        _client.publish(
-            request_topic,
-            json.dumps({"pushing": {"sequence_id": "0", "command": "pushall"}}),
-        )
-
-    def on_message(_client, _userdata, msg):
-        try:
-            data = json.loads(msg.payload.decode("utf-8"))
-            state = data.get("print", {}).get("gcode_state")
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            return
-        if state:
-            result["status"] = state
-            received.set()
-
-    def on_disconnect(_client, _userdata, _disconnect_flags, reason_code, _properties=None):
-        if not received.is_set() and reason_code != 0:
-            result["status"] = f"连接断开 ({reason_code})"
-            received.set()
-
-    mqtt_client.on_connect = on_connect
-    mqtt_client.on_message = on_message
-    mqtt_client.on_disconnect = on_disconnect
+def query_printer(printer: PrinterSpec) -> str:
+    """通过对应品牌适配器查询状态。"""
     try:
-        mqtt_client.connect(ip_address, 8883, 10)
-        mqtt_client.loop_start()
-        if not received.wait(MQTT_TIMEOUT):
-            return "查询超时"
-        return result["status"] or "未知"
-    except Exception as exc:
-        return f"连接异常: {type(exc).__name__}"
-    finally:
-        mqtt_client.loop_stop()
-        mqtt_client.disconnect()
+        return get_adapter(printer.brand).query_status(printer, timeout=MQTT_TIMEOUT)
+    except AdapterUnavailable as exc:
+        return f"未支持: {exc}"
 
 
 def fetch_all_records():
@@ -140,10 +95,19 @@ def poll_once():
         ip_address = str(fields.get(IP_FIELD) or "").strip()
         serial = str(fields.get(SERIAL_FIELD) or "").strip()
         access_code = str(fields.get(ACCESS_CODE_FIELD) or "").strip()
-        if not ip_address or not serial or not access_code:
-            print(f"[跳过] record={record_id}: 缺少 {IP_FIELD}/{SERIAL_FIELD}/{ACCESS_CODE_FIELD}")
+        brand = str(fields.get(BRAND_FIELD) or "bambu").strip()
+        model = str(fields.get(MODEL_FIELD) or "").strip()
+        if not ip_address:
+            print(f"[跳过] record={record_id}: 缺少 {IP_FIELD}")
             continue
-        status = query_printer(ip_address, serial, access_code)
+        if brand.lower().replace(" ", "") in {"bambu", "bambulab"} and (
+            not serial or not access_code
+        ):
+            print(f"[跳过] record={record_id}: Bambu 缺少 {SERIAL_FIELD}/{ACCESS_CODE_FIELD}")
+            continue
+        status = query_printer(
+            PrinterSpec(brand, model, ip_address, serial, access_code)
+        )
         update_status(record_id, status)
         print(f"[同步] {serial} ({ip_address}) -> {status}")
 

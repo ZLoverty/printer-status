@@ -16,6 +16,7 @@ dependencies = [
 
 [project.scripts]
 printer-status = "printer_status.cli:main"
+printer-status-probe = "printer_status.probe:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

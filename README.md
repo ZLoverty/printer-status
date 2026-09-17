@@ -24,6 +24,18 @@ cp .env.example .env
 
 填写 `FEISHU_APP_ID`、`FEISHU_APP_SECRET`、`FEISHU_APP_TOKEN`、`FEISHU_TABLE_ID`。
 表格需要包含 `ip_address`、`serial`、`access_code`、`status` 四列。
+如果需要混用多个品牌，增加 `brand` 和 `model` 两列；未填写 `brand` 的旧记录默认按 `bambu` 处理。
+
+## 独立测试打印机连接
+
+探测命令不访问飞书，只调用对应打印机适配器：
+
+```bash
+printer-status-probe --brand bambu --model X1C \
+  --ip 192.168.1.20 --serial SERIAL --access-code ACCESS_CODE
+```
+
+目前 Bambu 适配器已接入；Creality、Raise3D、Snapmaker 已建立兼容层入口，具体型号协议确认后再实现，避免把不兼容的协议误写进主流程。
 
 ## 运行
 

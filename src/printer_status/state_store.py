@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-BUSY_STATES = {"RUNNING", "PAUSED", "BUSY"}
+BUSY_STATES = {"RUNNING", "PAUSED", "BUSY", "FAILED"}
 IDLE_STATES = {"IDLE", "FINISHED"}
 
 STATUS_ALIASES = {

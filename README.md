@@ -115,7 +115,7 @@ printer-status-probe --brand snapmaker --model U1 \
 
 在多维表格主表增加三个数字字段：`utilization`、`busy_seconds`、`observed_seconds`。程序会在本地 SQLite 文件 `.data/printer_status.db` 中记录每轮采样，并将累计使用率回填到主表。
 
-默认将 `RUNNING`、`PAUSED`、`BUSY` 计为忙碌，将 `IDLE`、`FINISHED` 计为空闲；`OFFLINE`、`UNKNOWN` 和查询超时不计入有效观测时间。程序会统一识别 `PRINTING/RUNNING`、`PAUSE/PAUSED`、`FINISH/FINISHED` 等别名。`MAX_COUNTED_GAP` 默认 900 秒，用于避免服务长时间停止后把停机时间算作使用时间。
+默认将 `RUNNING`、`PAUSED`、`BUSY`、`FAILED` 计为忙碌，将 `IDLE`、`FINISHED` 计为空闲；`OFFLINE`、`UNKNOWN` 和查询超时不计入有效观测时间。程序会统一识别 `PRINTING/RUNNING`、`PAUSE/PAUSED`、`FINISH/FINISHED` 等别名。`MAX_COUNTED_GAP` 默认 900 秒，用于避免服务长时间停止后把停机时间算作使用时间。
 
 如果修复统计逻辑前已经产生了历史采样，可以重建累计数据：
 

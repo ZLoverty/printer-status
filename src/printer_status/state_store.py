@@ -8,9 +8,26 @@ from pathlib import Path
 BUSY_STATES = {"RUNNING", "PAUSED", "BUSY"}
 IDLE_STATES = {"IDLE", "FINISHED"}
 
+STATUS_ALIASES = {
+    "PRINTING": "RUNNING",
+    "RUN": "RUNNING",
+    "PAUSE": "PAUSED",
+    "FINISH": "FINISHED",
+    "COMPLETE": "FINISHED",
+    "COMPLETED": "FINISHED",
+    "STANDBY": "IDLE",
+    "READY": "IDLE",
+}
+
+
+def normalize_status(status: str) -> str:
+    """Normalize equivalent vendor status names before accounting."""
+    value = status.strip().upper()
+    return STATUS_ALIASES.get(value, status.strip())
+
 
 class StateStore:
-    def __init__(self, path: str, max_gap_seconds: float = 180):
+    def __init__(self, path: str, max_gap_seconds: float = 900):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.max_gap_seconds = max_gap_seconds
@@ -42,6 +59,7 @@ class StateStore:
         self.db.commit()
 
     def record(self, printer_key: str, status: str) -> dict[str, float | str]:
+        status = normalize_status(status)
         now = datetime.now(timezone.utc)
         is_busy = status in BUSY_STATES
         is_countable = is_busy or status in IDLE_STATES

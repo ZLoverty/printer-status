@@ -43,7 +43,7 @@ UTILIZATION_FIELD = os.getenv("UTILIZATION_FIELD", "utilization")
 BUSY_SECONDS_FIELD = os.getenv("BUSY_SECONDS_FIELD", "busy_seconds")
 OBSERVED_SECONDS_FIELD = os.getenv("OBSERVED_SECONDS_FIELD", "observed_seconds")
 STATE_DB_PATH = os.getenv("STATE_DB_PATH", ".data/printer_status.db")
-MAX_COUNTED_GAP = float(os.getenv("MAX_COUNTED_GAP", "180"))
+MAX_COUNTED_GAP = float(os.getenv("MAX_COUNTED_GAP", "900"))
 
 client = lark.Client.builder().app_id(APP_ID).app_secret(APP_SECRET).build()
 state_store = StateStore(STATE_DB_PATH, max_gap_seconds=MAX_COUNTED_GAP)

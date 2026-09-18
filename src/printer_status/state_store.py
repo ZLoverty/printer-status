@@ -5,12 +5,29 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-BUSY_STATES = {"RUNNING", "PAUSED", "BUSY"}
+BUSY_STATES = {"RUNNING", "PAUSED", "BUSY", "FAILED"}
 IDLE_STATES = {"IDLE", "FINISHED"}
+
+STATUS_ALIASES = {
+    "PRINTING": "RUNNING",
+    "RUN": "RUNNING",
+    "PAUSE": "PAUSED",
+    "FINISH": "FINISHED",
+    "COMPLETE": "FINISHED",
+    "COMPLETED": "FINISHED",
+    "STANDBY": "IDLE",
+    "READY": "IDLE",
+}
+
+
+def normalize_status(status: str) -> str:
+    """Normalize equivalent vendor status names before accounting."""
+    value = status.strip().upper()
+    return STATUS_ALIASES.get(value, status.strip())
 
 
 class StateStore:
-    def __init__(self, path: str, max_gap_seconds: float = 180):
+    def __init__(self, path: str, max_gap_seconds: float = 900):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.max_gap_seconds = max_gap_seconds
@@ -42,6 +59,7 @@ class StateStore:
         self.db.commit()
 
     def record(self, printer_key: str, status: str) -> dict[str, float | str]:
+        status = normalize_status(status)
         now = datetime.now(timezone.utc)
         is_busy = status in BUSY_STATES
         is_countable = is_busy or status in IDLE_STATES
@@ -82,6 +100,62 @@ class StateStore:
             "observed_seconds": round(observed, 1),
             "last_seen": now.isoformat(timespec="seconds"),
         }
+
+    def rebuild(self) -> int:
+        """Rebuild aggregate counters from raw samples without deleting samples."""
+        rows = self.db.execute(
+            """SELECT printer_key, observed_at, status
+               FROM state_samples
+               ORDER BY printer_key, observed_at, id"""
+        ).fetchall()
+        aggregates = {}
+        for row in rows:
+            key = row["printer_key"]
+            status = normalize_status(row["status"])
+            current_time = datetime.fromisoformat(row["observed_at"])
+            item = aggregates.setdefault(
+                key,
+                {
+                    "status": status,
+                    "started_at": row["observed_at"],
+                    "last_seen_at": row["observed_at"],
+                    "busy_seconds": 0.0,
+                    "idle_seconds": 0.0,
+                },
+            )
+            if item["last_seen_at"] != row["observed_at"]:
+                previous_time = datetime.fromisoformat(item["last_seen_at"])
+                elapsed = (current_time - previous_time).total_seconds()
+                if (
+                    status in BUSY_STATES | IDLE_STATES
+                    and item["status"] in BUSY_STATES | IDLE_STATES
+                    and 0 <= elapsed <= self.max_gap_seconds
+                ):
+                    if item["status"] in BUSY_STATES:
+                        item["busy_seconds"] += elapsed
+                    else:
+                        item["idle_seconds"] += elapsed
+            item["status"] = status
+            item["last_seen_at"] = row["observed_at"]
+
+        self.db.execute("DELETE FROM printer_state")
+        for key, item in aggregates.items():
+            self.db.execute(
+                """INSERT INTO printer_state
+                   (printer_key, status, is_busy, started_at, last_seen_at, busy_seconds, idle_seconds)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    key,
+                    item["status"],
+                    int(item["status"] in BUSY_STATES),
+                    item["started_at"],
+                    item["last_seen_at"],
+                    item["busy_seconds"],
+                    item["idle_seconds"],
+                ),
+            )
+        self.db.commit()
+        return len(aggregates)
 
     def close(self):
         self.db.close()

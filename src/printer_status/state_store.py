@@ -101,5 +101,61 @@ class StateStore:
             "last_seen": now.isoformat(timespec="seconds"),
         }
 
+    def rebuild(self) -> int:
+        """Rebuild aggregate counters from raw samples without deleting samples."""
+        rows = self.db.execute(
+            """SELECT printer_key, observed_at, status
+               FROM state_samples
+               ORDER BY printer_key, observed_at, id"""
+        ).fetchall()
+        aggregates = {}
+        for row in rows:
+            key = row["printer_key"]
+            status = normalize_status(row["status"])
+            current_time = datetime.fromisoformat(row["observed_at"])
+            item = aggregates.setdefault(
+                key,
+                {
+                    "status": status,
+                    "started_at": row["observed_at"],
+                    "last_seen_at": row["observed_at"],
+                    "busy_seconds": 0.0,
+                    "idle_seconds": 0.0,
+                },
+            )
+            if item["last_seen_at"] != row["observed_at"]:
+                previous_time = datetime.fromisoformat(item["last_seen_at"])
+                elapsed = (current_time - previous_time).total_seconds()
+                if (
+                    status in BUSY_STATES | IDLE_STATES
+                    and item["status"] in BUSY_STATES | IDLE_STATES
+                    and 0 <= elapsed <= self.max_gap_seconds
+                ):
+                    if item["status"] in BUSY_STATES:
+                        item["busy_seconds"] += elapsed
+                    else:
+                        item["idle_seconds"] += elapsed
+            item["status"] = status
+            item["last_seen_at"] = row["observed_at"]
+
+        self.db.execute("DELETE FROM printer_state")
+        for key, item in aggregates.items():
+            self.db.execute(
+                """INSERT INTO printer_state
+                   (printer_key, status, is_busy, started_at, last_seen_at, busy_seconds, idle_seconds)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    key,
+                    item["status"],
+                    int(item["status"] in BUSY_STATES),
+                    item["started_at"],
+                    item["last_seen_at"],
+                    item["busy_seconds"],
+                    item["idle_seconds"],
+                ),
+            )
+        self.db.commit()
+        return len(aggregates)
+
     def close(self):
         self.db.close()
